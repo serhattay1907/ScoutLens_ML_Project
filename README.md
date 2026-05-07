@@ -66,3 +66,9 @@ git clone https://github.com/serhattay1907/ScoutLens_ML_Project
 ├── V1_football_valuation.ipynb  # Data pipeline & ML notebook
 └── README.md
 
+
+<img width="1843" height="692" alt="ScoutLens_UI1" src="https://github.com/user-attachments/assets/9b1f7be0-1bed-4c35-bb8d-23d7393df981" />
+<img width="359" height="851" alt="ScoutLens_UI2_Dashboard" src="https://github.com/user-attachments/assets/540c9ae0-32f8-49eb-a360-de22f25a6e8a" />
+
+
+
