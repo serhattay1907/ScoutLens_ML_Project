@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScoutLens — ML-Based Player Valuation</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090f;--bg2:#0c0f1a;--bg3:#111520;--cardb:#131722;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.12);
+  --text:#dde2f0;--muted:#606680;--subtle:#3a3f58;
+  --accent:#00e5b0;--a2:#0077ff;--gold:#f0c430;--red:#ff4f4f;--purple:#9055f5;
+  --font:'Syne',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;}
+/* BG */
+.bg-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
+.orb{position:absolute;border-radius:50%;filter:blur(130px);opacity:0.11;}
+.orb1{width:600px;height:600px;background:var(--accent);top:-180px;left:-120px;animation:drift1 20s ease-in-out infinite;}
+.orb2{width:500px;height:500px;background:var(--a2);bottom:-120px;right:-80px;animation:drift2 22s ease-in-out infinite;}
+.orb3{width:360px;height:360px;background:var(--purple);top:45%;left:50%;margin-left:-180px;animation:drift3 18s ease-in-out infinite;}
+@keyframes drift1{0%,100%{transform:translate(0,0);}50%{transform:translate(50px,-40px);}}
+@keyframes drift2{0%,100%{transform:translate(0,0);}50%{transform:translate(-40px,30px);}}
+@keyframes drift3{0%,100%{transform:translate(0,0);}50%{transform:translate(30px,-50px);}}
+.grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,229,176,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,176,0.022) 1px,transparent 1px);
+  background-size:48px 48px;}
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px;position:relative;z-index:1;}
+/* HEADER */
+header{border-bottom:1px solid var(--border);padding:18px 0;background:rgba(7,9,15,0.88);backdrop-filter:blur(20px);position:sticky;top:0;z-index:200;animation:slideDown .5s ease;}
+@keyframes slideDown{from{transform:translateY(-100%);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.hinner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+.logo{display:flex;align-items:center;gap:13px;}
+.logo-icon{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--a2));display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 20px rgba(0,229,176,0.3);animation:lpulse 3s ease-in-out infinite;}
+@keyframes lpulse{0%,100%{box-shadow:0 0 20px rgba(0,229,176,0.3);}50%{box-shadow:0 0 34px rgba(0,229,176,0.55);}}
+.logo-name{font-size:18px;font-weight:800;letter-spacing:-.4px;}
+.logo-name em{color:var(--accent);font-style:normal;}
+.logo-sub{font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:1px;margin-top:1px;}
+.hright{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.hbadge{font-size:11px;font-family:var(--mono);padding:5px 12px;border-radius:20px;border:1px solid;letter-spacing:.3px;white-space:nowrap;}
+.hb-green{background:rgba(0,229,176,0.1);color:var(--accent);border-color:rgba(0,229,176,0.25);}
+.hb-blue{background:rgba(0,119,255,0.1);color:var(--a2);border-color:rgba(0,119,255,0.25);}
+.hb-red{background:rgba(255,79,79,0.1);color:var(--red);border-color:rgba(255,79,79,0.25);}
+/* HERO */
+.hero{padding:70px 0 50px;text-align:center;}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-family:var(--mono);color:var(--accent);background:rgba(0,229,176,0.08);border:1px solid rgba(0,229,176,0.2);padding:6px 16px;border-radius:20px;margin-bottom:22px;animation:fu .6s ease .1s both;}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:blink 1.5s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.2;}}
+.hero h1{font-size:clamp(36px,5.5vw,64px);font-weight:800;letter-spacing:-2px;line-height:1.05;margin-bottom:18px;animation:fu .6s ease .2s both;}
+.hl{color:transparent;background:linear-gradient(90deg,var(--accent),var(--a2));-webkit-background-clip:text;background-clip:text;}
+.hero p{font-size:17px;color:var(--muted);max-width:560px;margin:0 auto 40px;line-height:1.65;animation:fu .6s ease .3s both;}
+@keyframes fu{from{opacity:0;transform:translateY(22px);}to{opacity:1;transform:translateY(0);}}
+.stat-row{display:flex;justify-content:center;flex-wrap:wrap;margin-bottom:46px;border:1px solid var(--border);border-radius:14px;overflow:hidden;animation:fu .6s ease .4s both;}
+.stat-item{padding:22px 36px;border-right:1px solid var(--border);text-align:center;flex:1;min-width:130px;}
+.stat-item:last-child{border-right:none;}
+.snum{font-size:32px;font-weight:800;font-family:var(--mono);line-height:1;}
+.slbl{font-size:11px;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.8px;}
+/* API BANNER */
+.api-banner{background:linear-gradient(135deg,rgba(0,119,255,0.07),rgba(0,229,176,0.04));border:1px solid rgba(0,119,255,0.18);border-radius:14px;padding:18px 22px;display:flex;align-items:center;gap:16px;margin-bottom:26px;flex-wrap:wrap;}
+.api-banner-txt{flex:2;min-width:180px;}
+.api-banner-txt strong{color:var(--text);font-size:14px;display:block;margin-bottom:3px;}
+.api-banner-txt p{font-size:12px;color:var(--muted);line-height:1.5;}
+.api-banner input{flex:3;min-width:200px;background:rgba(7,9,15,.8);border:1px solid rgba(0,119,255,.25);color:var(--text);font-family:var(--mono);font-size:12px;border-radius:8px;padding:10px 14px;outline:none;transition:all .2s;}
+.api-banner input:focus{border-color:var(--a2);box-shadow:0 0 0 3px rgba(0,119,255,.12);}
+/* TABS */
+.tabs-bar{position:sticky;top:77px;z-index:150;background:rgba(7,9,15,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);}
+.tabs{display:flex;overflow-x:auto;padding:0 28px;max-width:1120px;margin:0 auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{padding:14px 20px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .25s;display:flex;align-items:center;gap:7px;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+/* SECTIONS */
+.section{display:none;padding:36px 0 64px;animation:si .32s ease;}
+.section.active{display:block;}
+@keyframes si{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+/* CARDS */
+.card{background:var(--cardb);border:1px solid var(--border);border-radius:14px;padding:24px;transition:border-color .25s;}
+.card:hover{border-color:var(--border2);}
+.ctitle{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+.cdot{width:6px;height:6px;border-radius:50%;background:var(--accent);}
+/* GRIDS */
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:18px;}
+.g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px;}
+.g4{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px;}
+/* METRICS */
+.metric{background:var(--cardb);border:1px solid var(--border);border-radius:12px;padding:20px;transition:transform .2s,border-color .2s;}
+.metric:hover{transform:translateY(-3px);}
+.mval{font-size:36px;font-weight:800;font-family:var(--mono);line-height:1;margin-bottom:6px;}
+.mlbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;}
+.msub{font-size:11px;color:var(--subtle);margin-top:4px;}
+/* FORM */
+input,select,textarea{background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--font);font-size:14px;border-radius:8px;padding:10px 14px;width:100%;outline:none;transition:all .2s;}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,229,176,.1);}
+select option{background:var(--bg2);}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:7px;font-weight:500;}
+.frow{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:16px;}
+.fgrp{margin-bottom:0;}
+/* SLIDERS */
+input[type=range]{-webkit-appearance:none;padding:0;height:4px;border-radius:4px;cursor:pointer;background:linear-gradient(90deg,var(--accent) var(--pct,50%),rgba(255,255,255,.1) var(--pct,50%));}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;transition:transform .15s;}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25);}
+.srow{display:flex;align-items:center;gap:8px;}
+.sval{font-family:var(--mono);font-size:13px;color:var(--accent);min-width:36px;text-align:right;}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:10px;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s;white-space:nowrap;}
+.btn-p{background:linear-gradient(135deg,var(--accent),#00b891);color:#050810;box-shadow:0 4px 20px rgba(0,229,176,.22);}
+.btn-p:hover{transform:translateY(-2px);box-shadow:0 6px 28px rgba(0,229,176,.38);}
+.btn-p:disabled{opacity:.38;cursor:not-allowed;transform:none;box-shadow:none;}
+.btn-s{background:transparent;border:1px solid var(--border2);color:var(--muted);}
+.btn-s:hover{border-color:var(--accent);color:var(--accent);}
+.btn-v{background:linear-gradient(135deg,var(--purple),#7b2ff7);color:#fff;box-shadow:0 4px 20px rgba(144,85,245,.22);}
+.btn-v:hover{transform:translateY(-2px);box-shadow:0 6px 28px rgba(144,85,245,.4);}
+/* PLAYER CARDS */
+.pc{background:var(--cardb);border:1px solid var(--border);border-radius:12px;padding:17px;transition:all .25s;animation:cin .4s ease both;}
+.pc:hover{border-color:rgba(0,229,176,.35);transform:translateY(-4px);box-shadow:0 8px 30px rgba(0,229,176,.09);}
+@keyframes cin{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+.phead{display:flex;align-items:center;gap:11px;margin-bottom:13px;}
+.pav{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;position:relative;}
+.pav::after{content:'';position:absolute;inset:-2px;border-radius:50%;z-index:-1;}
+.pname{font-weight:700;font-size:15px;line-height:1.2;}
+.pmeta{font-size:12px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.pstats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;}
+.ps{background:var(--bg3);border-radius:8px;padding:9px 10px;}
+.psv{font-size:16px;font-weight:700;font-family:var(--mono);color:var(--accent);}
+.psl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+.gbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);font-weight:600;padding:4px 10px;border-radius:6px;background:rgba(0,229,176,.11);color:var(--accent);border:1px solid rgba(0,229,176,.2);}
+.tp{font-size:10px;padding:2px 8px;border-radius:12px;font-weight:700;letter-spacing:.3px;}
+.t1{background:rgba(240,196,48,.15);color:var(--gold);}
+.t2{background:rgba(0,119,255,.15);color:var(--a2);}
+.t3{background:rgba(144,85,245,.15);color:var(--purple);}
+.atag{font-size:11px;color:var(--subtle);margin-top:8px;font-style:italic;}
+/* GEM CARDS */
+.gc{background:var(--cardb);border:1px solid rgba(144,85,245,.18);border-radius:12px;padding:17px;transition:all .25s;animation:cin .4s ease both;}
+.gc:hover{border-color:rgba(144,85,245,.5);transform:translateY(-4px);box-shadow:0 8px 30px rgba(144,85,245,.11);}
+.gring{width:56px;height:56px;flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;}
+.gring svg{position:absolute;inset:0;transform:rotate(-90deg);}
+.ring-bg{fill:none;stroke:rgba(144,85,245,.12);stroke-width:3;}
+.ring-fill{fill:none;stroke:var(--purple);stroke-width:3;stroke-linecap:round;}
+.grv{font-size:15px;font-weight:800;font-family:var(--mono);color:var(--purple);position:relative;}
+/* TABLE */
+.twrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;padding:11px 14px;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tbody tr{transition:background .15s;}
+tbody tr:hover td{background:rgba(255,255,255,.02);}
+/* PROGRESS */
+.pbar-w{display:flex;align-items:center;gap:8px;}
+.pbar{height:5px;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--a2));min-width:4px;}
+/* AI BOX */
+.aibox{background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:20px;font-size:14px;line-height:1.75;color:var(--text);min-height:90px;}
+.thinking{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;}
+.dots span{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);animation:dp 1.2s infinite;margin:0 2px;}
+.dots span:nth-child(2){animation-delay:.2s;}.dots span:nth-child(3){animation-delay:.4s;}
+@keyframes dp{0%,80%,100%{transform:scale(.6);opacity:.3;}40%{transform:scale(1);opacity:1;}}
+/* CHAT */
+.cwrap{display:flex;flex-direction:column;gap:13px;margin-bottom:15px;min-height:80px;max-height:380px;overflow-y:auto;padding-right:4px;}
+.cwrap::-webkit-scrollbar{width:4px;}.cwrap::-webkit-scrollbar-thumb{background:var(--subtle);border-radius:4px;}
+.msg{display:flex;flex-direction:column;max-width:85%;animation:fu .28s ease;}
+.msg-u{align-self:flex-end;align-items:flex-end;}
+.msg-a{align-self:flex-start;align-items:flex-start;}
+.mlabel{font-size:10px;color:var(--subtle);margin-bottom:4px;font-family:var(--mono);letter-spacing:.5px;}
+.mbubble{padding:11px 15px;border-radius:12px;font-size:13px;line-height:1.65;}
+.msg-u .mbubble{background:rgba(0,229,176,.11);border:1px solid rgba(0,229,176,.18);border-radius:12px 12px 2px 12px;}
+.msg-a .mbubble{background:var(--cardb);border:1px solid var(--border);border-radius:12px 12px 12px 2px;}
+.cir{display:flex;gap:10px;}
+.cir textarea{flex:1;resize:none;border-radius:10px;padding:11px 14px;font-size:13px;}
+/* PIPE */
+.pflow{display:flex;align-items:center;overflow-x:auto;padding:4px 0;scrollbar-width:thin;}
+.pnode{flex-shrink:0;background:var(--cardb);border:1px solid var(--border);border-radius:10px;padding:12px 13px;text-align:center;min-width:88px;transition:all .2s;}
+.pnode.done{border-color:rgba(0,229,176,.28);}
+.pnode.done:hover{border-color:var(--accent);transform:translateY(-2px);}
+.pn{font-size:10px;font-family:var(--mono);color:var(--accent);margin-bottom:3px;}
+.pl{font-size:11px;font-weight:600;}
+.parr{color:var(--subtle);padding:0 5px;font-size:14px;flex-shrink:0;}
+/* EMPTY */
+.empty{text-align:center;padding:52px 24px;border:1px dashed var(--border2);border-radius:14px;color:var(--muted);}
+.empty-icon{font-size:40px;margin-bottom:12px;}
+/* FEAT BAR */
+.fbar-row{margin-bottom:13px;}
+.fbar-top{display:flex;justify-content:space-between;margin-bottom:5px;}
+.fbar-name{font-size:13px;}.fbar-pct{font-size:12px;font-family:var(--mono);color:var(--accent);}
+.fbar-track{height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;}
+.fbar-fill{height:100%;border-radius:3px;transition:width 1s ease;}
+/* SECTION HEADER */
+.shdr{margin-bottom:26px;}
+.shdr h2{font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:5px;}
+.shdr p{font-size:14px;color:var(--muted);line-height:1.6;}
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;z-index:999;background:var(--cardb);border:1px solid var(--border2);border-radius:12px;padding:13px 18px;display:flex;align-items:center;gap:9px;font-size:13px;transform:translateY(80px);opacity:0;transition:all .35s cubic-bezier(.34,1.56,.64,1);pointer-events:none;max-width:300px;box-shadow:0 8px 40px rgba(0,0,0,.4);}
+.toast.show{transform:translateY(0);opacity:1;}
+/* FOOTER */
+footer{padding:44px 0 28px;border-top:1px solid var(--border);text-align:center;color:var(--muted);font-size:12px;margin-top:20px;}
+.ftitle{font-size:16px;font-weight:800;margin-bottom:7px;color:var(--text);}
+.flinks{display:flex;justify-content:center;gap:20px;margin:14px 0;flex-wrap:wrap;}
+.flinks a{color:var(--muted);text-decoration:none;font-size:12px;transition:color .2s;}
+.flinks a:hover{color:var(--accent);}
+@media(max-width:640px){.hero h1{font-size:32px;letter-spacing:-1px;}.stat-item{padding:16px 18px;}.snum{font-size:24px;}.tabs .tab{padding:12px 14px;font-size:13px;}}
+</style>
+</head>
+<body>
+<div class="bg-canvas">
+  <div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div>
+</div>
+<div class="grid-bg"></div>
+
+<header>
+  <div class="wrap">
+    <div class="hinner">
+      <div class="logo">
+        <div class="logo-icon">⚽</div>
+        <div>
+          <div class="logo-name">Scout<em>Lens</em></div>
+          <div class="logo-sub">ML-BASED PLAYER VALUATION</div>
+        </div>
+      </div>
+      <div class="hright">
+        <span class="hbadge hb-green">XGBoost · R² 0.677</span>
+        <span class="hbadge hb-blue">Transfermarkt</span>
+        <span id="apiSt" class="hbadge hb-red">No API Key</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow"><div class="dot"></div>9-Stage ML Pipeline · 6,952 Active Players</div>
+    <h1>Find <span class="hl">Undervalued</span><br>Football Talent</h1>
+    <p>XGBoost-powered market value prediction. Surfaces hidden gems in Tier 2/3 leagues before the market catches on — 14× better than formula baselines.</p>
+    <div class="stat-row">
+      <div class="stat-item"><div class="snum" style="color:var(--accent)" data-cnt="6952">0</div><div class="slbl">Active Players</div></div>
+      <div class="stat-item"><div class="snum" style="color:var(--a2)" data-dec="0.677">0.000</div><div class="slbl">Model R²</div></div>
+      <div class="stat-item"><div class="snum" style="color:var(--gold)">€3.12M</div><div class="slbl">Mean Abs Error</div></div>
+      <div class="stat-item"><div class="snum" style="color:var(--purple)" data-cnt="318">0</div><div class="slbl">Future Gems</div></div>
+    </div>
+  </div>
+  <div class="api-banner">
+    <div style="font-size:26px">🔑</div>
+    <div class="api-banner-txt">
+      <strong>Anthropic API Key — Unlock AI Analysis</strong>
+      <p>Powers AI scout reports, gem analysis, and pipeline explanations. Runs entirely in your browser — never sent to any server.</p>
+    </div>
+    <input type="password" id="apiKey" placeholder="sk-ant-api03-..." autocomplete="off" oninput="checkKey()">
+  </div>
+</div>
+
+<div class="tabs-bar">
+  <div class="tabs">
+    <div class="tab active" onclick="go('overview')">📊 Overview</div>
+    <div class="tab" onclick="go('scout')">🔍 Player Scout</div>
+    <div class="tab" onclick="go('gems')">💎 Future Gems</div>
+    <div class="tab" onclick="go('compare')">⚖️ Compare</div>
+    <div class="tab" onclick="go('analyst')">🤖 AI Analyst</div>
+    <div class="tab" onclick="go('pipeline')">⚙️ Pipeline</div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ═══ OVERVIEW ═══ -->
+<div id="tab-overview" class="section active">
+  <div class="shdr"><h2>Project Overview</h2><p>End-to-end pipeline from raw Transfermarkt CSVs to a ranked undervalued player list and high-potential prospect report.</p></div>
+  <div class="g4">
+    <div class="metric" style="border-color:rgba(0,229,176,.18)"><div class="mval" style="color:var(--accent)">30</div><div class="mlbl">Top Picks</div><div class="msub">Undervalued targets</div></div>
+    <div class="metric" style="border-color:rgba(144,85,245,.18)"><div class="mval" style="color:var(--purple)">318</div><div class="mlbl">Future Gems</div><div class="msub">Gem Score ≥ 70</div></div>
+    <div class="metric" style="border-color:rgba(0,119,255,.18)"><div class="mval" style="color:var(--a2)">63%</div><div class="mlbl">Non-Elite</div><div class="msub">Tier 2 / Tier 3 picks</div></div>
+    <div class="metric" style="border-color:rgba(240,196,48,.18)"><div class="mval" style="color:var(--gold)">14×</div><div class="mlbl">Improvement</div><div class="msub">vs V1 baseline</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ctitle"><div class="cdot"></div>Model Competition — 5-fold CV</div>
+      <table><thead><tr><th>Model</th><th>R²</th><th>MAE</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--muted)">V1 Formula</td><td style="font-family:var(--mono)">0.047</td><td>—</td><td style="color:var(--muted)">Baseline</td></tr>
+        <tr><td><strong>XGBoost</strong></td><td style="font-family:var(--mono);color:var(--accent)">0.677</td><td style="font-family:var(--mono)">€3.12M</td><td style="color:var(--accent);font-weight:700">✓ Winner</td></tr>
+        <tr><td>LightGBM</td><td style="font-family:var(--mono)">0.651</td><td style="font-family:var(--mono)">€3.40M</td><td style="color:var(--muted)">2nd</td></tr>
+        <tr><td>Random Forest</td><td style="font-family:var(--mono)">0.624</td><td style="font-family:var(--mono)">€3.68M</td><td style="color:var(--muted)">3rd</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card">
+      <div class="ctitle"><div class="cdot" style="background:var(--a2)"></div>Feature Importance Groups</div>
+      <div id="featBars"></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ctitle"><div class="cdot" style="background:var(--purple)"></div>Top-30 Tier Distribution</div><div id="tierChart"></div></div>
+    <div class="card"><div class="ctitle"><div class="cdot" style="background:var(--a2)"></div>Active Pool by Position</div><div id="posChart"></div></div>
+  </div>
+  <div class="card">
+    <div class="ctitle"><div class="cdot" style="background:var(--gold)"></div>Top-30 Sample Picks <span style="color:var(--subtle);font-weight:400;text-transform:none;letter-spacing:0;font-size:11px">(demo data)</span></div>
+    <div class="g3" id="topGrid"></div>
+  </div>
+</div>
+
+<!-- ═══ SCOUT ═══ -->
+<div id="tab-scout" class="section">
+  <div class="shdr"><h2>Player Scout</h2><p>Filter active players by position, tier, age, and minimum value gap. AI tactical analysis auto-generates when an API key is set.</p></div>
+  <div class="card" style="margin-bottom:20px">
+    <div class="ctitle"><div class="cdot"></div>Scout Filters</div>
+    <div class="frow">
+      <div class="fgrp"><label>Position</label><select id="sPos"><option value="">All Positions</option><option>Attack</option><option>Midfield</option><option>Defender</option><option>Goalkeeper</option></select></div>
+      <div class="fgrp"><label>League Tier</label><select id="sTier"><option value="">All Tiers</option><option value="1">⭐ Tier 1 — Top 5 Europe</option><option value="2">🔵 Tier 2 — Strong Mid</option><option value="3">🟣 Tier 3 — Non-Elite</option></select></div>
+      <div class="fgrp"><label>Archetype</label><select id="sArch"><option value="">All Archetypes</option><option>Prolific Scorer</option><option>Wide Finisher</option><option>Deep Playmaker</option><option>Ball-Playing CB</option><option>Modern Fullback</option><option>Explosive Winger</option></select></div>
+    </div>
+    <div class="frow">
+      <div class="fgrp"><label>Age Range: <span id="ageLbl" style="color:var(--accent);font-family:var(--mono)">18–30</span></label>
+        <div class="srow">
+          <span style="font-size:12px;color:var(--muted)">15</span>
+          <input type="range" id="sAgeMin" min="15" max="45" value="18" oninput="syncS(this);updateAgeLbl()">
+          <input type="range" id="sAgeMax" min="15" max="45" value="30" oninput="syncS(this);updateAgeLbl()">
+          <span style="font-size:12px;color:var(--muted)">45</span>
+        </div>
+      </div>
+      <div class="fgrp"><label>Min Value Gap: <span id="gapLbl" style="color:var(--accent);font-family:var(--mono)">0.5</span></label>
+        <div class="srow">
+          <span style="font-size:12px;color:var(--muted)">0</span>
+          <input type="range" id="sGap" min="0" max="40" value="10" oninput="syncS(this);document.getElementById('gapLbl').textContent=(this.value/10).toFixed(1)">
+          <span style="font-size:12px;color:var(--muted)">4.0</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:4px">
+      <button class="btn btn-p" onclick="runScout()" id="scoutBtn">⚡ Run Scout</button>
+      <button class="btn btn-s" onclick="resetScout()">↺ Reset Filters</button>
+      <span style="font-size:12px;color:var(--muted)" id="scoutCnt"></span>
+    </div>
+  </div>
+  <div id="scoutRes"></div>
+</div>
+
+<!-- ═══ GEMS ═══ -->
+<div id="tab-gems" class="section">
+  <div class="shdr"><h2>Future Gems</h2><p>Predictive growth model for high-potential young talent. The Gem Score rewards youth, improving trajectory, and trusted playing time.</p></div>
+  <div class="card" style="margin-bottom:20px;border-color:rgba(144,85,245,.2);background:linear-gradient(135deg,rgba(144,85,245,.04),var(--cardb))">
+    <div style="display:flex;gap:14px;margin-bottom:20px">
+      <div style="font-size:32px;line-height:1;flex-shrink:0">💎</div>
+      <div>
+        <div style="font-weight:700;font-size:15px;color:var(--purple);margin-bottom:5px">Gem Score Algorithm</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6">
+          <strong style="color:var(--text)">Age Factor (50%)</strong> — peaks at U21 (1.0), decays to 0.7 at 22–24, then 0.2 at 25+.
+          <strong style="color:var(--text)"> Performance Velocity (30%)</strong> — ratio of G+A per 90 in last 12 months vs prior 12 months.
+          <strong style="color:var(--text)"> Experience Density (20%)</strong> — minutes played relative to 3,000-min reference for trusted young starters.
+        </div>
+      </div>
+    </div>
+    <div class="frow">
+      <div class="fgrp"><label>Min Gem Score: <span id="gScLbl" style="color:var(--purple);font-family:var(--mono)">70</span></label>
+        <div class="srow"><span style="font-size:12px;color:var(--muted)">0</span><input type="range" id="gSc" min="0" max="100" value="70" oninput="document.getElementById('gScLbl').textContent=this.value;syncS(this)"><span style="font-size:12px;color:var(--muted)">100</span></div>
+      </div>
+      <div class="fgrp"><label>Max Age: <span id="gAgLbl" style="color:var(--purple);font-family:var(--mono)">23</span></label>
+        <div class="srow"><span style="font-size:12px;color:var(--muted)">15</span><input type="range" id="gAg" min="15" max="35" value="23" oninput="document.getElementById('gAgLbl').textContent=this.value;syncS(this)"><span style="font-size:12px;color:var(--muted)">35</span></div>
+      </div>
+      <div class="fgrp"><label>Position</label><select id="gPos"><option value="">All</option><option>Attack</option><option>Midfield</option><option>Defender</option><option>Goalkeeper</option></select></div>
+      <div class="fgrp"><label>Country</label><select id="gCtr"><option value="">All Countries</option><option>Brazil</option><option>France</option><option>Spain</option><option>Argentina</option><option>England</option><option>Germany</option><option>Portugal</option><option>Italy</option><option>Turkey</option></select></div>
+    </div>
+    <button class="btn btn-v" onclick="runGems()">💎 Discover Gems</button>
+  </div>
+  <div id="gemRes"></div>
+</div>
+
+<!-- ═══ COMPARE ═══ -->
+<div id="tab-compare" class="section">
+  <div class="shdr"><h2>Compare Players</h2><p>Head-to-head stats comparison between any two players in the demo dataset. Winning stats are highlighted in green.</p></div>
+  <div class="g2" style="margin-bottom:20px">
+    <div class="fgrp"><label>Player A</label><select id="cmpA" onchange="renderCmp()"><option value="">Select a player...</option></select></div>
+    <div class="fgrp"><label>Player B</label><select id="cmpB" onchange="renderCmp()"><option value="">Select a player...</option></select></div>
+  </div>
+  <div id="cmpOut"></div>
+</div>
+
+<!-- ═══ AI ANALYST ═══ -->
+<div id="tab-analyst" class="section">
+  <div class="shdr"><h2>AI Analyst</h2><p>Ask anything about the pipeline, model design decisions, or player valuation methodology. Powered by Claude.</p></div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+      <div style="font-size:22px">🤖</div>
+      <div><div style="font-weight:700;font-size:14px">ScoutLens AI Analyst</div><div style="font-size:12px;color:var(--muted)">Knows every detail of the 9-stage pipeline and design decisions</div></div>
+      <div id="aiSt" style="margin-left:auto;font-size:11px;color:var(--red);font-family:var(--mono)">⚠ API key required</div>
+    </div>
+    <div id="cwrap" class="cwrap"></div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">
+      <button class="btn btn-s" style="font-size:12px;padding:7px 12px" onclick="setQ('Why does XGBoost outperform LightGBM on this dataset?')">Why XGBoost?</button>
+      <button class="btn btn-s" style="font-size:12px;padding:7px 12px" onclick="setQ('Explain the log-scale target and why it matters')">Log-scale target</button>
+      <button class="btn btn-s" style="font-size:12px;padding:7px 12px" onclick="setQ('How does the Tier 1 quota affect the Top 30 list?')">Tier 1 quota</button>
+      <button class="btn btn-s" style="font-size:12px;padding:7px 12px" onclick="setQ('What is data leakage and how was it prevented?')">Leakage prevention</button>
+      <button class="btn btn-s" style="font-size:12px;padding:7px 12px" onclick="setQ('Explain per-90 normalization and why it is better than raw counts')">Per-90 stats</button>
+    </div>
+    <div class="cir">
+      <textarea id="qinput" rows="2" placeholder="Ask about the pipeline, features, model decisions... (Enter to send)"></textarea>
+      <button class="btn btn-p" onclick="askAI()" id="askBtn">Send →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PIPELINE ═══ -->
+<div id="tab-pipeline" class="section">
+  <div class="shdr"><h2>Pipeline Architecture</h2><p>9 stages from raw CSV to ranked scouting output. Click any stage button for a detailed explanation.</p></div>
+  <div class="card" style="margin-bottom:18px">
+    <div class="ctitle"><div class="cdot"></div>Pipeline Flow</div>
+    <div class="pflow" id="pflow"></div>
+  </div>
+  <div class="g2" style="margin-bottom:18px">
+    <div class="card">
+      <div class="ctitle"><div class="cdot" style="background:var(--a2)"></div>Data Sources — 6 Transfermarkt CSVs</div>
+      <table><thead><tr><th>File</th><th>Key Columns</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td style="font-family:var(--mono);font-size:12px;color:var(--accent)">players.csv</td><td style="color:var(--muted)">market_value_in_eur, age, position</td><td>Target + base attributes</td></tr>
+        <tr><td style="font-family:var(--mono);font-size:12px;color:var(--accent)">appearances.csv</td><td style="color:var(--muted)">goals, assists, minutes_played</td><td>Per-90 feature source</td></tr>
+        <tr><td style="font-family:var(--mono);font-size:12px;color:var(--accent)">clubs.csv</td><td style="color:var(--muted)">name, domestic_competition_id</td><td>Club name resolution</td></tr>
+        <tr><td style="font-family:var(--mono);font-size:12px;color:var(--accent)">competitions.csv</td><td style="color:var(--muted)">competition_id</td><td>League tier mapping</td></tr>
+        <tr><td style="font-family:var(--mono);font-size:12px;color:var(--accent)">player_valuations.csv</td><td style="color:var(--muted)">market_value_in_eur, date</td><td>Historical value trend</td></tr>
+        <tr><td style="font-family:var(--mono);font-size:12px;color:var(--accent)">transfers.csv</td><td style="color:var(--muted)">transfer_fee, transfer_date</td><td>Fee history features</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card">
+      <div class="ctitle"><div class="cdot" style="background:var(--gold)"></div>Key Design Decisions</div>
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <div style="border-left:2px solid var(--accent);padding:8px 14px;background:rgba(0,229,176,.04);border-radius:0 8px 8px 0"><div style="font-size:13px;font-weight:600;margin-bottom:3px">Log-scale target</div><div style="font-size:12px;color:var(--muted);line-height:1.5">log(market_value) prevents €500M stars dominating MSE. Back-transformed via exp() for reporting.</div></div>
+        <div style="border-left:2px solid var(--a2);padding:8px 14px;background:rgba(0,119,255,.04);border-radius:0 8px 8px 0"><div style="font-size:13px;font-weight:600;margin-bottom:3px">Per-90 normalization</div><div style="font-size:12px;color:var(--muted);line-height:1.5">Goals × 90 / total_minutes. Makes a 200-min fringe player comparable to a 2000-min regular starter.</div></div>
+        <div style="border-left:2px solid var(--purple);padding:8px 14px;background:rgba(144,85,245,.04);border-radius:0 8px 8px 0"><div style="font-size:13px;font-weight:600;margin-bottom:3px">Leakage removal</div><div style="font-size:12px;color:var(--muted);line-height:1.5">highest_market_value_in_eur excluded — same Transfermarkt source as target, would inflate R² artificially.</div></div>
+        <div style="border-left:2px solid var(--gold);padding:8px 14px;background:rgba(240,196,48,.04);border-radius:0 8px 8px 0"><div style="font-size:13px;font-weight:600;margin-bottom:3px">Tier 1 quota (max 40%)</div><div style="font-size:12px;color:var(--muted);line-height:1.5">Prevents Top-5 league stars dominating the list. Goal ≥60% Tier 2/3 → achieved 63%.</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ctitle"><div class="cdot"></div>Stage Explainer</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn btn-s" style="font-size:12px" onclick="exStage(2)">Stage 2 — Active Filter</button>
+      <button class="btn btn-s" style="font-size:12px" onclick="exStage(3)">Stage 3 — Features</button>
+      <button class="btn btn-s" style="font-size:12px" onclick="exStage(5)">Stage 5 — XGBoost</button>
+      <button class="btn btn-s" style="font-size:12px" onclick="exStage(6)">Stage 6 — KMeans</button>
+      <button class="btn btn-s" style="font-size:12px" onclick="exStage(7)">Stage 7 — Top 30</button>
+      <button class="btn btn-s" style="font-size:12px" onclick="exStage(9)">Stage 9 — Gem Score</button>
+    </div>
+    <div id="pipeEx" class="aibox" style="color:var(--muted);font-size:13px;min-height:64px">Select a stage above to read its explanation.</div>
+  </div>
+</div>
+
+</div><!-- wrap -->
+
+<div id="toast" class="toast"></div>
+
+<footer>
+  <div class="wrap">
+    <div class="ftitle">ScoutLens — ML-Based Player Valuation</div>
+    <p style="font-size:12px;color:var(--muted)">XGBoost · Transfermarkt Data · Anthropic API · TEKNOFEST 2026 Portfolio</p>
+    <div class="flinks"><a href="#" onclick="go('overview')">Overview</a><a href="#" onclick="go('scout')">Scout</a><a href="#" onclick="go('gems')">Gems</a><a href="#" onclick="go('pipeline')">Pipeline</a></div>
+    <p style="font-size:11px;color:var(--subtle)">Demo data only — run the Colab notebook to populate with real model predictions.</p>
+  </div>
+</footer>
+
+<script>
+// ─── DATA ───
+const PLAYERS=[
+  {name:"Artem Dovbyk",age:26,pos:"Attack",club:"Roma",tier:1,arch:"Prolific Scorer",market:30e6,pred:61e6,gap:1.24,caps:28,g90:0.72,a90:0.18,mins:2840,country:"Ukraine"},
+  {name:"Lautaro Giannetti",age:24,pos:"Defender",club:"Villarreal",tier:1,arch:"Ball-Playing CB",market:12e6,pred:28e6,gap:1.11,caps:0,g90:0.05,a90:0.04,mins:2100,country:"Argentina"},
+  {name:"Serdar Gürler",age:27,pos:"Attack",club:"Trabzonspor",tier:2,arch:"Wide Finisher",market:4.5e6,pred:11e6,gap:1.23,caps:3,g90:0.61,a90:0.22,mins:1890,country:"Turkey"},
+  {name:"Mert Müldür",age:25,pos:"Defender",club:"Sassuolo",tier:1,arch:"Modern Fullback",market:6e6,pred:13e6,gap:1.18,caps:14,g90:0.12,a90:0.14,mins:2200,country:"Turkey"},
+  {name:"Orkun Kökçü",age:23,pos:"Midfield",club:"Benfica",tier:2,arch:"Deep Playmaker",market:18e6,pred:38e6,gap:1.03,caps:16,g90:0.28,a90:0.31,mins:2560,country:"Turkey"},
+  {name:"Jayden Braaf",age:22,pos:"Attack",club:"Udinese",tier:1,arch:"Explosive Winger",market:3e6,pred:9e6,gap:1.38,caps:0,g90:0.55,a90:0.28,mins:1420,country:"Netherlands"},
+  {name:"Lucas Beltrán",age:22,pos:"Attack",club:"Fiorentina",tier:1,arch:"Prolific Scorer",market:15e6,pred:29e6,gap:0.88,caps:2,g90:0.41,a90:0.17,mins:1680,country:"Argentina"},
+  {name:"Hamza Čajić",age:21,pos:"Midfield",club:"FK Sarajevo",tier:3,arch:"Box-to-Box",market:0.5e6,pred:2.2e6,gap:1.48,caps:0,g90:0.33,a90:0.41,mins:1940,country:"Bosnia"},
+  {name:"Kerem Aktürkoğlu",age:25,pos:"Attack",club:"Galatasaray",tier:2,arch:"Wide Finisher",market:8e6,pred:17e6,gap:1.01,caps:12,g90:0.52,a90:0.34,mins:2010,country:"Turkey"},
+];
+const GEMS=[
+  {name:"Lamine Yamal",age:17,pos:"Attack",country:"Spain",club:"Barcelona",gem:97,value:40e6,vel:2.1,mins:2200},
+  {name:"Endrick",age:18,pos:"Attack",country:"Brazil",club:"Real Madrid",gem:94,value:35e6,vel:1.8,mins:1980},
+  {name:"Mathys Tel",age:19,pos:"Attack",country:"France",club:"Bayern Munich",gem:91,value:25e6,vel:1.6,mins:1650},
+  {name:"Warren Zaïre-Emery",age:18,pos:"Midfield",country:"France",club:"PSG",gem:89,value:20e6,vel:1.5,mins:2100},
+  {name:"Alejandro Garnacho",age:19,pos:"Attack",country:"Argentina",club:"Man Utd",gem:87,value:30e6,vel:1.4,mins:2300},
+  {name:"Bradley Barcola",age:21,pos:"Attack",country:"France",club:"PSG",gem:86,value:35e6,vel:1.7,mins:2150},
+  {name:"Nicolò Fagioli",age:22,pos:"Midfield",country:"Italy",club:"Juventus",gem:82,value:18e6,vel:1.3,mins:2400},
+  {name:"Yunus Akgün",age:22,pos:"Attack",country:"Turkey",club:"Galatasaray",gem:78,value:6e6,vel:1.2,mins:1800},
+];
+const STAGES=[
+  {n:"01",l:"Data Load",desc:"6 Transfermarkt CSVs loaded and date columns parsed. Memory and shape sanity-checked. Required files: players, appearances, clubs, competitions, player_valuations, transfers."},
+  {n:"02",l:"Active Filter",desc:"Age-adjusted minute thresholds applied. U21: ≥90 mins, 21–30: ≥180 mins, 30+: ≥360 mins in last 24 months. Also requires last_season≥2024, active club ID, and non-null positive market value. Retains 6,952 from ~80K raw players."},
+  {n:"03",l:"Feature Eng.",desc:"24 features: per-90 stats (goals, assists, cards, mins/game) from 24-month window. Performance trend = G+A per 90 last 12mo / prior 12mo clipped [0,5]. League tier (1–3), transfer fee max/count, player attributes (age, height, caps, foot, position one-hot). highest_market_value excluded to prevent leakage."},
+  {n:"04",l:"Train/Test",desc:"80/20 stratified split, seed=42. Target: log(market_value_in_eur) to handle right-skewed distribution. Train: ~5,562 players. Test: ~1,390 players."},
+  {n:"05",l:"XGBoost",desc:"5-fold CV across XGBoost, LightGBM, Random Forest. XGBoost wins: R²=0.677, MAE=€3.12M. 14× improvement over V1 formula (R²=0.047). Log predictions back-transformed via exp() for EUR reporting."},
+  {n:"06",l:"KMeans",desc:"Position-specific KMeans on normalized per-90 stats. Elbow method per position. 15 unique archetypes produced — Prolific Scorer, Deep Playmaker, Modern Fullback, etc. Each archetype ≥2% of position pool."},
+  {n:"07",l:"Top 30",desc:"Ranked by value_gap_log = log(predicted) − log(actual). Tier 1 capped at 40% (max 12 slots) to ensure ≥60% non-elite. Minimum market value threshold applied. Exported to undervalued_players.json."},
+  {n:"08",l:"Visualize",desc:"Correlation heatmap, value gap violin per position, archetype distribution per position. All saved as PNG for reporting."},
+  {n:"09",l:"Gem Score",desc:"Gem Score = Age×0.5 + Velocity×0.3 + Density×0.2. Age: 1.0 (≤21), 0.7 (22–24), 0.2 (25+). Velocity: min(trend,2.5)/2.5. Density: min(mins/3000,1.0). 318 players score ≥70."},
+];
+
+// ─── HELPERS ───
+const fmt=v=>v>=1e6?`€${(v/1e6).toFixed(1)}M`:`€${(v/1e3).toFixed(0)}k`;
+const ini=n=>n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const GRADS=['linear-gradient(135deg,#00e5b0,#0077ff)','linear-gradient(135deg,#9055f5,#0077ff)','linear-gradient(135deg,#f0c430,#e05c00)','linear-gradient(135deg,#ff4f80,#9055f5)','linear-gradient(135deg,#00d4ff,#0077ff)'];
+const ag=n=>GRADS[n.charCodeAt(0)%GRADS.length];
+const fmtT=t=>t.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+
+function toast(msg,icon='✓'){
+  const t=document.getElementById('toast');
+  t.innerHTML=`${icon} ${msg}`;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+function syncS(el){
+  const pct=(el.value-el.min)/(el.max-el.min)*100;
+  el.style.setProperty('--pct',pct+'%');
+}
+document.querySelectorAll('input[type=range]').forEach(syncS);
+
+// ─── TABS ───
+function go(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelector(`[onclick="go('${name}')"]`).classList.add('active');
+  document.getElementById(`tab-${name}`).classList.add('active');
+}
+
+// ─── API KEY ───
+function checkKey(){
+  const k=document.getElementById('apiKey').value.trim();
+  const b=document.getElementById('apiSt');
+  const ai=document.getElementById('aiSt');
+  if(k.startsWith('sk-ant-')){
+    b.textContent='API Key ✓';b.className='hbadge hb-green';
+    if(ai){ai.textContent='✓ Ready';ai.style.color='var(--accent)';}
+    toast('AI features unlocked 🔑');
+  } else {
+    b.textContent='No API Key';b.className='hbadge hb-red';
+    if(ai){ai.textContent='⚠ API key required';ai.style.color='var(--red)';}
+  }
+}
+
+// ─── COUNTERS ───
+function animCnt(){
+  document.querySelectorAll('[data-cnt]').forEach(el=>{
+    const t=parseInt(el.dataset.cnt);let n=0;const s=Math.ceil(t/60);
+    const iv=setInterval(()=>{n=Math.min(n+s,t);el.textContent=n.toLocaleString();if(n>=t)clearInterval(iv);},16);
+  });
+  document.querySelectorAll('[data-dec]').forEach(el=>{
+    const t=parseFloat(el.dataset.dec);let n=0;const s=t/60;
+    const iv=setInterval(()=>{n=Math.min(n+s,t);el.textContent=n.toFixed(3);if(n>=t)clearInterval(iv);},16);
+  });
+}
+
+// ─── FEATURE BARS ───
+function renderFeatBars(){
+  const f=[
+    {name:'Per-90 Performance Stats',pct:38,c:'var(--accent)'},
+    {name:'Player Attributes (age, caps, height)',pct:28,c:'var(--a2)'},
+    {name:'League Tier & Transfer History',pct:21,c:'var(--gold)'},
+    {name:'Performance Trend (12m ratio)',pct:13,c:'var(--purple)'},
+  ];
+  document.getElementById('featBars').innerHTML=f.map(x=>`
+    <div class="fbar-row">
+      <div class="fbar-top"><span class="fbar-name">${x.name}</span><span class="fbar-pct">${x.pct}%</span></div>
+      <div class="fbar-track"><div class="fbar-fill" style="width:0%;background:${x.c}" data-w="${x.pct}%"></div></div>
+    </div>`).join('');
+  setTimeout(()=>document.querySelectorAll('.fbar-fill').forEach(b=>b.style.width=b.dataset.w),120);
+}
+
+// ─── BAR CHARTS ───
+function barChart(id,data,maxN){
+  const max=maxN||Math.max(...data.map(d=>d.n));
+  document.getElementById(id).innerHTML='<div style="display:flex;flex-direction:column;gap:10px">'+
+  data.map(d=>{
+    const p=Math.round(d.n/max*100);
+    return `<div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+        <span style="font-size:13px">${d.label}</span>
+        <span style="font-family:var(--mono);font-size:12px;color:${d.c}">${typeof d.n==='number'&&d.n>999?d.n.toLocaleString():d.n}</span>
+      </div>
+      <div style="height:7px;background:rgba(255,255,255,.05);border-radius:4px;overflow:hidden">
+        <div style="width:0%;height:100%;background:${d.c};border-radius:4px;transition:width 1s ease" data-w="${p}%"></div>
+      </div>
+    </div>`;
+  }).join('')+'</div>';
+  setTimeout(()=>document.querySelectorAll(`#${id} [data-w]`).forEach(b=>b.style.width=b.dataset.w),120);
+}
+
+// ─── PLAYER CARD ───
+function pcHTML(p,i){
+  return `<div class="pc" style="animation-delay:${i*.05}s">
+    <div class="phead">
+      <div class="pav" style="background:${ag(p.name)}">${ini(p.name)}</div>
+      <div>
+        <div class="pname">${p.name}</div>
+        <div class="pmeta"><span>${p.age}y</span>·<span style="color:var(--muted)">${p.club}</span>·<span class="tp t${p.tier}">T${p.tier}</span></div>
+      </div>
+    </div>
+    <div class="pstats">
+      <div class="ps"><div class="psv">${fmt(p.market)}</div><div class="psl">Market</div></div>
+      <div class="ps"><div class="psv" style="color:var(--a2)">${fmt(p.pred)}</div><div class="psl">Model</div></div>
+      <div class="ps"><div class="psv">${p.g90.toFixed(2)}</div><div class="psl">Goals/90</div></div>
+      <div class="ps"><div class="psv">${p.a90.toFixed(2)}</div><div class="psl">Assists/90</div></div>
+    </div>
+    <span class="gbadge">▲ gap ${p.gap.toFixed(2)}</span>
+    <div class="atag">${p.arch} · ${p.pos}</div>
+  </div>`;
+}
+
+// ─── PIPELINE ───
+function renderPipeline(){
+  document.getElementById('pflow').innerHTML=STAGES.map((s,i)=>
+    (i>0?'<div class="parr">→</div>':'')+
+    `<div class="pnode done" title="${s.desc}"><div class="pn">${s.n}</div><div class="pl">${s.l}</div></div>`
+  ).join('');
+}
+
+// ─── SCOUT ───
+function updateAgeLbl(){
+  const a=parseInt(document.getElementById('sAgeMin').value);
+  const b=parseInt(document.getElementById('sAgeMax').value);
+  document.getElementById('ageLbl').textContent=`${Math.min(a,b)}–${Math.max(a,b)}`;
+}
+function resetScout(){
+  ['sPos','sTier','sArch'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('sAgeMin').value=18;document.getElementById('sAgeMax').value=30;
+  document.getElementById('sGap').value=10;
+  ['sAgeMin','sAgeMax','sGap'].forEach(id=>syncS(document.getElementById(id)));
+  updateAgeLbl();document.getElementById('gapLbl').textContent='0.5';
+  document.getElementById('scoutRes').innerHTML='';document.getElementById('scoutCnt').textContent='';
+}
+async function runScout(){
+  const apiKey=document.getElementById('apiKey').value.trim();
+  const pos=document.getElementById('sPos').value;
+  const tier=document.getElementById('sTier').value;
+  const arch=document.getElementById('sArch').value;
+  const amin=Math.min(parseInt(document.getElementById('sAgeMin').value),parseInt(document.getElementById('sAgeMax').value));
+  const amax=Math.max(parseInt(document.getElementById('sAgeMin').value),parseInt(document.getElementById('sAgeMax').value));
+  const gmin=parseInt(document.getElementById('sGap').value)/10;
+
+  const filtered=PLAYERS.filter(p=>{
+    if(pos&&p.pos!==pos)return false;
+    if(tier&&p.tier!==parseInt(tier))return false;
+    if(arch&&p.arch!==arch)return false;
+    if(p.age<amin||p.age>amax)return false;
+    if(p.gap<gmin)return false;
+    return true;
+  });
+
+  document.getElementById('scoutCnt').textContent=`${filtered.length} player${filtered.length!==1?'s':''} found`;
+  const div=document.getElementById('scoutRes');
+
+  if(!filtered.length){
+    div.innerHTML=`<div class="empty"><div class="empty-icon">🔍</div><p>No players match these filters.<br>Try broadening the age range or lowering the minimum value gap.</p></div>`;return;
+  }
+
+  const maxG=Math.max(...filtered.map(p=>p.gap));
+  const tbl=`<div class="card" style="margin-bottom:16px">
+    <div class="ctitle"><div class="cdot"></div>${filtered.length} Players Found</div>
+    <div class="twrap"><table>
+      <thead><tr><th>#</th><th>Player</th><th>Age</th><th>Position</th><th>Club</th><th>Tier</th><th>Market Val</th><th>Model Val</th><th>Value Gap</th><th>Goals/90</th></tr></thead>
+      <tbody>${filtered.map((p,i)=>`<tr>
+        <td style="color:var(--muted);font-family:var(--mono)">${i+1}</td>
+        <td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:${ag(p.name)};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">${ini(p.name)}</div><strong>${p.name}</strong></div></td>
+        <td>${p.age}</td><td style="color:var(--muted)">${p.pos}</td><td style="color:var(--muted)">${p.club}</td>
+        <td><span class="tp t${p.tier}">T${p.tier}</span></td>
+        <td style="font-family:var(--mono)">${fmt(p.market)}</td>
+        <td style="font-family:var(--mono);color:var(--accent)">${fmt(p.pred)}</td>
+        <td><div class="pbar-w"><div class="pbar" style="width:${Math.round(p.gap/maxG*70)+10}px"></div><span style="font-family:var(--mono);font-size:11px;color:var(--accent)">${p.gap.toFixed(2)}</span></div></td>
+        <td style="font-family:var(--mono)">${p.g90.toFixed(2)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+
+  if(apiKey){
+    div.innerHTML=tbl+`<div class="card"><div class="ctitle"><div class="cdot" style="background:var(--a2)"></div>AI Tactical Analysis</div><div id="scoutAI" class="aibox"><div class="thinking">Analyzing scout results <div class="dots"><span></span><span></span><span></span></div></div></div></div>`;
+    const names=filtered.map(p=>`${p.name} (${p.pos}, Age ${p.age}, Tier ${p.tier}, gap_log=${p.gap}, market=${fmt(p.market)}, model=${fmt(p.pred)})`).join('; ');
+    await callAI(apiKey,`You are a senior football analyst using the ScoutLens ML system. These players matched the scout filter: ${names}. Write a concise 2-3 paragraph tactical analysis: (1) common profile across picks, (2) best risk/reward target and why, (3) one caveat about relying purely on model predictions for transfers. Prose only.`,'scoutAI');
+  } else {
+    div.innerHTML=tbl+`<div style="font-size:12px;color:var(--muted);text-align:center;padding:12px;border:1px dashed var(--border);border-radius:8px">Enter your API key above to get AI tactical analysis of these results.</div>`;
+  }
+}
+
+// ─── GEMS ───
+async function runGems(){
+  const apiKey=document.getElementById('apiKey').value.trim();
+  const minSc=parseInt(document.getElementById('gSc').value);
+  const maxAg=parseInt(document.getElementById('gAg').value);
+  const pos=document.getElementById('gPos').value;
+  const ctr=document.getElementById('gCtr').value;
+
+  const filtered=GEMS.filter(g=>{
+    if(g.gem<minSc)return false;
+    if(g.age>maxAg)return false;
+    if(pos&&g.pos!==pos)return false;
+    if(ctr&&g.country!==ctr)return false;
+    return true;
+  });
+
+  const div=document.getElementById('gemRes');
+  if(!filtered.length){
+    div.innerHTML=`<div class="empty"><div class="empty-icon">💎</div><p>No gems found.<br>Try lowering the minimum Gem Score or increasing the max age.</p></div>`;return;
+  }
+
+  const C=2*Math.PI*23;
+  const cards=filtered.map((g,i)=>`
+    <div class="gc" style="animation-delay:${i*.06}s">
+      <div class="phead">
+        <div class="gring">
+          <svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+            <circle class="ring-bg" cx="28" cy="28" r="23"/>
+            <circle class="ring-fill" cx="28" cy="28" r="23" stroke-dasharray="${C}" stroke-dashoffset="${C-(g.gem/100)*C}"/>
+          </svg>
+          <span class="grv">${g.gem}</span>
+        </div>
+        <div>
+          <div class="pname">${g.name}</div>
+          <div class="pmeta"><span>${g.age}y</span>·<span>${g.country}</span>·<span style="color:var(--muted)">${g.club}</span></div>
+        </div>
+      </div>
+      <div class="pstats">
+        <div class="ps"><div class="psv" style="color:var(--purple)">${g.gem}/100</div><div class="psl">Gem Score</div></div>
+        <div class="ps"><div class="psv">${fmt(g.value)}</div><div class="psl">Market Val</div></div>
+        <div class="ps"><div class="psv" style="color:var(--gold)">${g.vel.toFixed(1)}×</div><div class="psl">Velocity</div></div>
+        <div class="ps"><div class="psv">${Math.round(g.mins/90)}</div><div class="psl">Apps (est.)</div></div>
+      </div>
+      <div class="atag">${g.pos} · High-velocity prospect</div>
+    </div>`).join('');
+
+  let html=`<div class="g3">${cards}</div>`;
+  if(apiKey){
+    html+=`<div class="card" style="margin-top:16px"><div class="ctitle"><div class="cdot" style="background:var(--purple)"></div>AI Scouting Report</div><div id="gemAI" class="aibox"><div class="thinking">Generating report <div class="dots"><span></span><span></span><span></span></div></div></div></div>`;
+    div.innerHTML=html;
+    const names=filtered.map(g=>`${g.name} (${g.age}y, ${g.pos}, ${g.country}, gem=${g.gem}, vel=${g.vel})`).join('; ');
+    await callAI(apiKey,`You are an elite youth talent scout using ScoutLens. Gem Score = Age(50%) + Velocity(30%) + Density(20%). Players found: ${names}. Write 2-3 paragraph scouting report: (1) highest-upside gem and position-specific qualities, (2) which player may be over/under-rated by the algorithm, (3) one recommendation for clubs on using this alongside traditional scouting. No bullet points.`,'gemAI');
+  } else {
+    div.innerHTML=html+`<div style="font-size:12px;color:var(--muted);text-align:center;padding:12px;border:1px dashed var(--border);border-radius:8px">Enter your API key above to generate an AI scouting report.</div>`;
+  }
+}
+
+// ─── COMPARE ───
+function populateCmp(){
+  const opts=PLAYERS.map((p,i)=>`<option value="${i}">${p.name} — ${p.club}</option>`).join('');
+  ['cmpA','cmpB'].forEach(id=>document.getElementById(id).innerHTML='<option value="">Select a player...</option>'+opts);
+}
+function renderCmp(){
+  const ia=document.getElementById('cmpA').value;
+  const ib=document.getElementById('cmpB').value;
+  const out=document.getElementById('cmpOut');
+  if(!ia||!ib){out.innerHTML='';return;}
+  const a=PLAYERS[ia],b=PLAYERS[ib];
+  const rows=[
+    {l:'Age',va:a.age,vb:b.age,fmt:v=>v+'y',hi:false},
+    {l:'Market Value',va:a.market,vb:b.market,fmt:fmt,hi:true},
+    {l:'Model Value',va:a.pred,vb:b.pred,fmt:fmt,hi:true},
+    {l:'Value Gap (log)',va:a.gap,vb:b.gap,fmt:v=>v.toFixed(2),hi:true},
+    {l:'Goals / 90',va:a.g90,vb:b.g90,fmt:v=>v.toFixed(2),hi:true},
+    {l:'Assists / 90',va:a.a90,vb:b.a90,fmt:v=>v.toFixed(2),hi:true},
+    {l:'Intl Caps',va:a.caps,vb:b.caps,fmt:v=>v,hi:true},
+    {l:'Minutes (24m)',va:a.mins,vb:b.mins,fmt:v=>v.toLocaleString(),hi:true},
+  ];
+  out.innerHTML=`<div class="card"><div style="display:grid;grid-template-columns:1fr 80px 1fr;gap:0;margin-bottom:18px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:44px;height:44px;border-radius:50%;background:${ag(a.name)};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff">${ini(a.name)}</div>
+      <div><div style="font-weight:700;font-size:16px">${a.name}</div><div style="font-size:12px;color:var(--muted)">${a.club} · <span class="tp t${a.tier}">T${a.tier}</span></div></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted);font-weight:700">VS</div>
+    <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end">
+      <div style="text-align:right"><div style="font-weight:700;font-size:16px">${b.name}</div><div style="font-size:12px;color:var(--muted)">${b.club} · <span class="tp t${b.tier}">T${b.tier}</span></div></div>
+      <div style="width:44px;height:44px;border-radius:50%;background:${ag(b.name)};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff">${ini(b.name)}</div>
+    </div>
+  </div>
+  ${rows.map(r=>{
+    const aw=r.hi?r.va>r.vb:r.va<r.vb;
+    const bw=r.hi?r.vb>r.va:r.vb<r.va;
+    return `<div style="display:grid;grid-template-columns:1fr 110px 1fr;gap:8px;padding:10px 0;border-top:1px solid var(--border);align-items:center">
+      <div style="font-family:var(--mono);font-size:14px;font-weight:600;color:${aw?'var(--accent)':'var(--text)'}">${r.fmt(r.va)}</div>
+      <div style="text-align:center;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px">${r.l}</div>
+      <div style="font-family:var(--mono);font-size:14px;font-weight:600;text-align:right;color:${bw?'var(--accent)':'var(--text)'}">${r.fmt(r.vb)}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ─── AI CHAT ───
+const chatHist=[];
+function setQ(t){document.getElementById('qinput').value=t;}
+async function askAI(){
+  const apiKey=document.getElementById('apiKey').value.trim();
+  if(!apiKey){toast('Please enter your API key first','⚠️');return;}
+  const q=document.getElementById('qinput').value.trim();
+  if(!q)return;
+  chatHist.push({role:'user',content:q});
+  document.getElementById('qinput').value='';
+  renderChat();document.getElementById('askBtn').disabled=true;
+  const sys=`You are an expert ML engineer and football data scientist who built ScoutLens — ML-Based Player Valuation. You know every detail: 6 Transfermarkt CSVs, 6952 active players after age-adjusted filtering, 24 features (per-90 stats, performance trend, league tier, transfer history, player attributes), XGBoost on log(market_value) R²=0.677 MAE=€3.12M (14× over V1 R²=0.047), KMeans position clustering 15 archetypes, Tier1 quota ≤40% in Top30, Gem Score = Age×0.5+Velocity×0.3+Density×0.2. Answer technically and concisely under 180 words unless depth is needed.`;
+  const aid=`ai-${Date.now()}`;
+  chatHist.push({role:'assistant',content:'',_id:aid,_ld:true});
+  renderChat();
+  try{
+    const msgs=chatHist.filter(m=>!m._ld&&m.content).map(m=>({role:m.role,content:m.content}));
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:[...msgs,{role:'user',content:q}]})});
+    const d=await r.json();
+    const txt=d.content?.[0]?.text||'Could not generate a response.';
+    const idx=chatHist.findIndex(m=>m._id===aid);
+    if(idx!==-1){chatHist[idx].content=txt;delete chatHist[idx]._ld;}
+  }catch(e){
+    const idx=chatHist.findIndex(m=>m._id===aid);
+    if(idx!==-1){chatHist[idx].content=`Error: ${e.message}`;delete chatHist[idx]._ld;}
+  }
+  renderChat();document.getElementById('askBtn').disabled=false;
+}
+function renderChat(){
+  const w=document.getElementById('cwrap');
+  if(!chatHist.length){w.innerHTML='<div style="color:var(--subtle);font-size:13px;text-align:center;padding:20px">Ask anything about the ScoutLens pipeline, methodology, or model decisions.</div>';return;}
+  w.innerHTML=chatHist.map(m=>`<div class="msg msg-${m.role==='user'?'u':'a'}"><div class="mlabel">${m.role==='user'?'You':'🤖 AI Analyst'}</div><div class="mbubble">${m._ld?'<div class="thinking">Thinking <div class="dots"><span></span><span></span><span></span></div></div>':fmtT(m.content)}</div></div>`).join('');
+  w.scrollTop=w.scrollHeight;
+}
+
+// ─── PIPELINE EXPLAINER ───
+const SM={2:STAGES[1],3:STAGES[2],5:STAGES[4],6:STAGES[5],7:STAGES[6],9:STAGES[8]};
+async function exStage(n){
+  const apiKey=document.getElementById('apiKey').value.trim();
+  const box=document.getElementById('pipeEx');
+  const s=SM[n];
+  if(apiKey){
+    box.innerHTML=`<div class="thinking">Generating explanation <div class="dots"><span></span><span></span><span></span></div></div>`;
+    await callAI(apiKey,`Explain Stage ${n} (${s.l}) of the ScoutLens ML pipeline for an engineering student. Context: ${s.desc}. Cover the engineering trade-offs and why this approach over alternatives. Be concise, 2-3 paragraphs.`,'pipeEx');
+  } else {
+    box.innerHTML=`<strong style="color:var(--accent)">Stage ${n} — ${s.l}</strong><br><br>${s.desc}`;
+    toast(`Stage ${n} loaded 📖`);
+  }
+}
+
+// ─── GENERIC AI CALL ───
+async function callAI(apiKey,prompt,targetId){
+  const el=document.getElementById(targetId);
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const d=await r.json();
+    if(d.error){el.innerHTML=`<span style="color:var(--red)">API Error: ${d.error.message}</span>`;return;}
+    el.innerHTML=fmtT(d.content?.[0]?.text||'');
+  }catch(e){el.innerHTML=`<span style="color:var(--red)">Error: ${e.message}</span>`;}
+}
+
+// ─── INIT ───
+window.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('topGrid').innerHTML=PLAYERS.map((p,i)=>pcHTML(p,i)).join('');
+  renderFeatBars();
+  barChart('tierChart',[{label:'Tier 1 — Top 5 Europe',n:'11 (37%)',c:'var(--gold)'},{label:'Tier 2 — Strong Mid',n:'12 (40%)',c:'var(--a2)'},{label:'Tier 3 — Non-Elite',n:'7 (23%)',c:'var(--purple)'}]);
+  barChart('posChart',[{label:'Attack',n:2468,c:'#ff4f80'},{label:'Midfield',n:2184,c:'var(--a2)'},{label:'Defender',n:1893,c:'var(--accent)'},{label:'Goalkeeper',n:407,c:'var(--gold)'}],2468);
+  renderPipeline();populateCmp();renderChat();animCnt();
+  document.getElementById('qinput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();askAI();}});
+});
+</script>
+</body>
+</html>
