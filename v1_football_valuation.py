@@ -20,7 +20,7 @@ Original file is located at
 # ─────────────────────────────────────────
 # CELL 1 — Install
 # ─────────────────────────────────────────
-!pip install xgboost --quiet
+# (notebook-only) !pip install xgboost --quiet
 
 # ─────────────────────────────────────────
 # CELL 2 — Imports & Config
