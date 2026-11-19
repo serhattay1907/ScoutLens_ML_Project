@@ -243,7 +243,7 @@ footer{padding:44px 0 28px;border-top:1px solid var(--border);text-align:center;
     <div style="font-size:26px">🔑</div>
     <div class="api-banner-txt">
       <strong>Anthropic API Key — Unlock AI Analysis</strong>
-      <p>Powers AI scout reports, gem analysis, and pipeline explanations. Runs entirely in your browser — never sent to any server.</p>
+      <p>Powers AI scout reports, gem analysis, and pipeline explanations. Your key stays in this page (never stored) and is sent only to Anthropic's API.</p>
     </div>
     <input type="password" id="apiKey" placeholder="sk-ant-api03-..." autocomplete="off" oninput="checkKey()">
   </div>
@@ -789,7 +789,7 @@ async function askAI(){
   renderChat();
   try{
     const msgs=chatHist.filter(m=>!m._ld&&m.content).map(m=>({role:m.role,content:m.content}));
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:[...msgs,{role:'user',content:q}]})});
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:1000,system:sys,messages:[...msgs,{role:'user',content:q}]})});
     const d=await r.json();
     const txt=d.content?.[0]?.text||'Could not generate a response.';
     const idx=chatHist.findIndex(m=>m._id===aid);
@@ -826,7 +826,7 @@ async function exStage(n){
 async function callAI(apiKey,prompt,targetId){
   const el=document.getElementById(targetId);
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const d=await r.json();
     if(d.error){el.innerHTML=`<span style="color:var(--red)">API Error: ${d.error.message}</span>`;return;}
     el.innerHTML=fmtT(d.content?.[0]?.text||'');

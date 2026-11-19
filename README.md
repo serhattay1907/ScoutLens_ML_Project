@@ -11,22 +11,23 @@ Predicts a player's fair market value from performance data and surfaces **under
 |---|---|
 | Raw player records | 47,701 (Transfermarkt, 6 CSVs) |
 | Active players modelled | 6,952 |
-| Best model | **XGBoost — R² 0.677** (log scale, CV) |
+| Best model | **XGBoost — R² 0.677** (log scale, held-out 20% test set; 5-fold CV for model selection) |
 | Runner-ups | LightGBM 0.649 · Random Forest 0.645 |
 | Improvement over V1 baseline | R² 0.047 → **0.677** |
 | MAE | ≈ €3.1M |
 | Top-30 undervalued list | 60% from Tier 2–3 leagues (target ≥ 60% ✅) |
 
 ## 🧠 Pipeline
-```
-6 Transfermarkt CSVs (47.7K players)
-  → active-player filter (6,952)
-  → feature engineering: per-90 stats, performance trend, transfer history, league tier, age
-  → model competition: XGBoost vs LightGBM vs Random Forest (CV)
-  → position-based KMeans → 15 player archetypes
-  → value gap (log scale) = predicted − market value
-  → Top-30 undervalued + "Future Gems" growth model
-  → interactive HTML app
+```mermaid
+flowchart LR
+  A[6 Transfermarkt CSVs<br/>47.7K players] --> B[Active-player filter<br/>6,952]
+  B --> C[Feature engineering<br/>per-90 · trend · transfers · league tier · age]
+  C --> D[Model competition<br/>XGBoost vs LightGBM vs RF]
+  C --> E[Position-based KMeans<br/>15 archetypes]
+  D --> F[Value gap<br/>log predicted − log market]
+  E --> F
+  F --> G[Top-30 undervalued<br/>+ Future Gems]
+  G --> H[Interactive HTML app]
 ```
 
 **Key decisions**
@@ -36,7 +37,7 @@ Predicts a player's fair market value from performance data and surfaces **under
 - **Position-specific clustering** so archetypes compare like with like
 
 ## 🖥️ App features (V2)
-Player Scout · Future Gems · Compare Players · Pipeline view · **AI Analyst** (Claude API, bring-your-own key — the key stays in your browser)
+Player Scout · Future Gems · Compare Players · Pipeline view · **AI Analyst** (Claude API, bring-your-own key — never stored, sent only to Anthropic's API)
 
 ## 🛠️ Stack
 Python · pandas · NumPy · scikit-learn · XGBoost · LightGBM · KMeans · Matplotlib · Google Colab · HTML/CSS/JS · GitHub Pages
@@ -53,7 +54,21 @@ Python · pandas · NumPy · scikit-learn · XGBoost · LightGBM · KMeans · Ma
 [Transfermarkt dataset on Kaggle](https://www.kaggle.com/datasets/davidcariboo/player-scores) — players, appearances, clubs, valuations, transfers.
 
 ## ▶️ Run
-Open either HTML file in a browser (data is embedded), or open the notebooks in Google Colab.
+**Demos:** open either HTML file in a browser — the data is embedded, no setup needed.
+
+**Pipeline (local):**
+```bash
+pip install -r requirements.txt
+# needs a Kaggle API token: https://www.kaggle.com/docs/api
+kaggle datasets download -d davidcariboo/player-scores -p data --unzip
+jupyter notebook ScoutLens_V2_ml_based_player_valuation.ipynb
+```
+The notebook finds the CSVs in `./data`, the current folder, or `/content` (Colab).
+
+## ⚠️ Limitations
+- Transfermarkt market values are crowd-estimated, not transaction prices — the model learns the market's opinion, not ground truth.
+- `transfer_fee_paid` is missing or zero for ~91% of active players, so it is a weak signal.
+- Value gaps are computed from in-sample predictions for training-set players; out-of-fold predictions are planned for the next version.
 
 ---
 **Author:** Serhat Tay
